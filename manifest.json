@@ -19,6 +19,11 @@
         "description": "Activate the standup bot in this channel and set the timezone.",
         "usage_hint": "<timezone(eg: Australia/Sydney)>",
         "should_escape": false
+      },
+      {
+        "command": "/reset-standup",
+        "description": "Reset the standup bot in this channel.",
+        "should_escape": false
       }
     ]
   },

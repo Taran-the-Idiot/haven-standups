@@ -7,7 +7,8 @@ const {
   isRunnableWindow,
   buildReminderText,
   getTimezoneOptions,
-  isChannelManagerUser
+  isChannelManagerUser,
+  matchesResetKey
 } = require('../src/standup-logic');
 
 test('computeMissingUsers keeps people who have not replied', () => {
@@ -54,4 +55,10 @@ test('getTimezoneOptions includes timezone names for the selection prompt', () =
   assert.ok(options.some((option) => option.value === 'UTC'));
   assert.ok(options.some((option) => option.value === 'America/New_York'));
   assert.ok(options.some((option) => option.value === 'Australia/Sydney'));
+});
+
+test('matchesResetKey rejects missing or incorrect keys', () => {
+  assert.equal(matchesResetKey('debug-123', 'debug-123'), true);
+  assert.equal(matchesResetKey('debug-123', 'other-key'), false);
+  assert.equal(matchesResetKey('', 'debug-123'), false);
 });

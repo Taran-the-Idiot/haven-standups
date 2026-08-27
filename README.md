@@ -17,7 +17,7 @@ A Slack bot that helps teams run daily standups.
    - `npm install`
 2. Copy the environment example:
    - `cp .env.example .env`
-3. Fill in your Slack credentials.
+3. Fill in your Slack credentials and a debug reset key.
 4. Start the app:
    - `npm start`
 5. Run tests:
@@ -40,5 +40,6 @@ Create a new Slack app using Socket Mode and add the following scopes:
 The app should be installed to each target channel, and the channel manager can then run:
 
 - `/activate-standup America/New_York`
+- `/reset-standup <RESET_KEY>`
 
-This keeps the bot dormant until explicitly enabled for a channel.
+This keeps the bot dormant until explicitly enabled for a channel. The reset command clears the bot’s in-memory state for debugging and is protected by the `RESET_KEY` value in `.env`.

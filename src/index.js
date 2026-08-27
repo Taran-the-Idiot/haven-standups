@@ -8,7 +8,8 @@ const {
   isRunnableWindow,
   nextStandupTime,
   isChannelManagerUser,
-  getTimezoneOptions
+  getTimezoneOptions,
+  normalizeTimezoneValue
 } = require('./standup-logic');
 
 const app = new App({
@@ -47,7 +48,7 @@ async function sendStandupMessage(channelId) {
   const members = result.members || [];
   const message = await app.client.chat.postMessage({
     channel: channelId,
-    text: 'Good morning! Please post a standup update: what you did yesterday and what you plan to do today.'
+    text: 'Good morning <!channel>! Please post a standup update: what you did yesterday and what you plan to do today.'
   });
 
   state.lastStandupTs = message.ts;
@@ -99,6 +100,16 @@ function getConfiguredManagerIds() {
     .filter(Boolean);
 }
 
+function resetChannelState(channelId) {
+  const state = getChannelState(channelId);
+  state.active = false;
+  state.timezone = 'UTC';
+  state.lastStandupTs = null;
+  state.lastThreadTs = null;
+  state.lastThreadUsers = [];
+  return state;
+}
+
 async function isChannelManager(channelId, userId) {
   try {
     const [channelInfo, userInfo] = await Promise.all([
@@ -130,8 +141,9 @@ async function activateStandup(channelId, userId, timezone) {
 
   state.active = true;
   state.timezone = timezone;
-
-  await sendStandupMessage(channelId);
+  state.lastStandupTs = null;
+  state.lastThreadTs = null;
+  state.lastThreadUsers = [];
 
   return {
     ok: true,
@@ -143,9 +155,9 @@ app.command('/activate-standup', async ({ command, ack, respond }) => {
   await ack();
   const channelId = command.channel_id;
   const userId = command.user_id;
-  const timezoneInput = (command.text || '').trim();
+  const timezoneInput = normalizeTimezoneValue((command.text || '').trim());
 
-  if (!timezoneInput) {
+  if (!timezoneInput || timezoneInput === 'UTC' && !(command.text || '').trim()) {
     await app.client.views.open({
       trigger_id: command.trigger_id,
       view: {
@@ -202,11 +214,33 @@ app.command('/activate-standup', async ({ command, ack, respond }) => {
   });
 });
 
+app.command('/reset-standup', async ({ command, ack, respond }) => {
+  await ack();
+
+  const channelId = command.channel_id;
+  const userId = command.user_id;
+
+  const canReset = await isChannelManager(channelId, userId);
+  if (!canReset) {
+    await respond({
+      text: 'Only channel managers can reset this standup bot.',
+      response_type: 'ephemeral'
+    });
+    return;
+  }
+
+  resetChannelState(channelId);
+  await respond({
+    text: 'Standup bot reset for this channel. State has been cleared for debugging.',
+    response_type: 'ephemeral'
+  });
+});
+
 app.view('timezone_setup', async ({ ack, view, body }) => {
   await ack();
 
   const { channelId, userId } = JSON.parse(view.private_metadata || '{}');
-  const timezone = view.state.values.timezone_block.timezone_select.selected_option?.value || 'UTC';
+  const timezone = normalizeTimezoneValue(view.state.values.timezone_block.timezone_select.selected_option?.value);
 
   if (!channelId) {
     return;

@@ -26,41 +26,51 @@ function buildReminderText(missingUsers) {
   return `Standup reminder: ${userList || 'No one'} is still missing a reply in this thread. Please post an update of what you did yesterday and what you plan to do today.`;
 }
 
+function getGmtOffsetOptions() {
+  const offsets = [-12, -11, -10, -9, -8, -7, -6, -5, -4, -3, -2, -1, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14];
+
+  return offsets.map((offset) => {
+    const sign = offset >= 0 ? '+' : '-';
+    const label = offset === 0 ? 'GMT+0' : `GMT${sign}${Math.abs(offset)}`;
+    const zone = offset === 0 ? 'UTC' : offset < 0 ? `Etc/GMT+${Math.abs(offset)}` : `Etc/GMT-${offset}`;
+
+    return {
+      label,
+      value: zone
+    };
+  });
+}
+
 function getTimezoneOptions() {
-  const zones = Intl.supportedValuesOf ? Intl.supportedValuesOf('timeZone') : [
-    'UTC',
-    'America/New_York',
-    'America/Los_Angeles',
-    'Europe/London',
-    'Europe/Berlin',
-    'Asia/Tokyo',
-    'Australia/Sydney'
-  ];
-
-  const preferred = [
-    'UTC',
-    'America/New_York',
-    'America/Chicago',
-    'America/Denver',
-    'America/Los_Angeles',
-    'Europe/London',
-    'Europe/Paris',
-    'Europe/Berlin',
-    'Asia/Dubai',
-    'Asia/Kolkata',
-    'Asia/Singapore',
-    'Asia/Tokyo',
-    'Australia/Sydney'
-  ];
-
-  const uniqueZones = [...new Set([...preferred, ...zones])];
-  return uniqueZones.map((zone) => ({
+  return getGmtOffsetOptions().map(({ label, value }) => ({
     text: {
       type: 'plain_text',
-      text: zone
+      text: label
     },
-    value: zone
+    value
   }));
+}
+
+function normalizeTimezoneValue(value) {
+  if (!value) return 'UTC';
+
+  const trimmed = String(value).trim();
+  if (trimmed === 'UTC') return 'UTC';
+
+  const match = trimmed.match(/^GMT([+-])(\d{1,2})(?::?(\d{2}))?$/i);
+  if (!match) {
+    return trimmed;
+  }
+
+  const sign = match[1] === '-' ? -1 : 1;
+  const hours = Number(match[2]);
+  const offset = sign * hours;
+
+  if (offset === 0) {
+    return 'UTC';
+  }
+
+  return offset < 0 ? `Etc/GMT+${Math.abs(offset)}` : `Etc/GMT-${offset}`;
 }
 
 function isChannelManagerUser(user, channelCreatorId, allowedManagerIds = []) {
@@ -84,5 +94,6 @@ module.exports = {
   isRunnableWindow,
   buildReminderText,
   getTimezoneOptions,
+  normalizeTimezoneValue,
   isChannelManagerUser
 };
