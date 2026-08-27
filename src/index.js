@@ -6,7 +6,8 @@ const {
   computeMissingUsers,
   buildReminderText,
   isRunnableWindow,
-  nextStandupTime
+  nextStandupTime,
+  isChannelManagerUser
 } = require('./standup-logic');
 
 const app = new App({
@@ -90,17 +91,52 @@ async function checkThreadReminders(channelId) {
   }
 }
 
+function getConfiguredManagerIds() {
+  return (process.env.CHANNEL_MANAGER_USER_IDS || '')
+    .split(',')
+    .map((value) => value.trim())
+    .filter(Boolean);
+}
+
+async function isChannelManager(channelId, userId) {
+  try {
+    const [channelInfo, userInfo] = await Promise.all([
+      app.client.conversations.info({ channel: channelId }),
+      app.client.users.info({ user: userId })
+    ]);
+
+    const channelCreatorId = channelInfo.channel?.creator;
+    const user = userInfo.user || {};
+    const configuredManagers = getConfiguredManagerIds();
+
+    return isChannelManagerUser(user, channelCreatorId, configuredManagers);
+  } catch (error) {
+    console.error('Channel-manager check failed:', error);
+    return false;
+  }
+}
+
 app.command('/activate-standup', async ({ command, ack, respond }) => {
   await ack();
   const channelId = command.channel_id;
+  const userId = command.user_id;
   const state = getChannelState(channelId);
   const timezone = command.text?.trim() || 'UTC';
+
+  const canActivate = await isChannelManager(channelId, userId);
+  if (!canActivate) {
+    await respond({
+      text: 'Only channel managers can activate standups in this channel.',
+      response_type: 'ephemeral'
+    });
+    return;
+  }
 
   state.active = true;
   state.timezone = timezone;
 
   await respond({
-    text: `Standup bot activated for this channel in ${timezone}. The next morning standup will be sent at 09:00 ${timezone}.`
+    text: `Standup bot activated for this channel in ${timezone}. The next morning standup will be sent at 08:00 ${timezone}.`
   });
 
   await sendStandupMessage(channelId);

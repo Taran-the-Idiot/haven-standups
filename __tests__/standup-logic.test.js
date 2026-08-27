@@ -5,7 +5,8 @@ const {
   computeMissingUsers,
   nextStandupTime,
   isRunnableWindow,
-  buildReminderText
+  buildReminderText,
+  isChannelManagerUser
 } = require('../src/standup-logic');
 
 test('computeMissingUsers keeps people who have not replied', () => {
@@ -20,11 +21,11 @@ test('nextStandupTime picks the next local morning standup time in timezone', ()
   const next = nextStandupTime('America/New_York', now);
 
   assert.equal(next.zoneName, 'America/New_York');
-  assert.equal(next.toFormat('yyyy-MM-dd HH:mm:ss'), '2026-08-28 09:00:00');
+  assert.equal(next.toFormat('yyyy-MM-dd HH:mm:ss'), '2026-08-28 08:00:00');
 });
 
 test('isRunnableWindow allows standup checks at the configured time', () => {
-  const current = DateTime.fromISO('2026-08-28T09:00:00', { zone: 'America/New_York' });
+  const current = DateTime.fromISO('2026-08-28T08:00:00', { zone: 'America/New_York' });
   assert.equal(isRunnableWindow(current, 'America/New_York'), true);
 
   const late = DateTime.fromISO('2026-08-28T10:05:00', { zone: 'America/New_York' });
@@ -37,4 +38,11 @@ test('buildReminderText mentions everyone still missing', () => {
   assert.match(text, /<@U1>/);
   assert.match(text, /<@U2>/);
   assert.match(text, /missing/i);
+});
+
+test('isChannelManagerUser allows channel creators and owners', () => {
+  assert.equal(isChannelManagerUser({ id: 'U123', is_admin: false }, 'U123'), true);
+  assert.equal(isChannelManagerUser({ id: 'U456', is_owner: true }, 'U789'), true);
+  assert.equal(isChannelManagerUser({ id: 'U456', is_admin: false }, 'U789'), false);
+  assert.equal(isChannelManagerUser({ id: 'U777', is_admin: false }, 'U789', ['U777']), true);
 });
