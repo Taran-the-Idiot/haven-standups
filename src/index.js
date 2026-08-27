@@ -27,6 +27,7 @@ function getChannelState(channelId) {
     channels.set(channelId, {
       active: false,
       timezone: 'UTC',
+      nextStandupAt: null,
       lastStandupTs: null,
       lastThreadTs: null,
       lastThreadUsers: []
@@ -58,6 +59,8 @@ async function sendStandupMessage(channelId) {
   if (members.length) {
     state.lastThreadUsers = members;
   }
+
+  state.nextStandupAt = nextStandupTime(state.timezone, now);
 
   const nextPing = nextStandupTime(state.timezone, now);
   console.log(`Standup scheduled for ${channelId} at ${nextPing.toISO()}`);
@@ -104,6 +107,7 @@ function resetChannelState(channelId) {
   const state = getChannelState(channelId);
   state.active = false;
   state.timezone = 'UTC';
+  state.nextStandupAt = null;
   state.lastStandupTs = null;
   state.lastThreadTs = null;
   state.lastThreadUsers = [];
@@ -151,6 +155,7 @@ async function activateStandup(channelId, userId, timezone) {
 
   state.active = true;
   state.timezone = timezone;
+  state.nextStandupAt = nextStandupTime(timezone, DateTime.now().setZone(timezone));
   state.lastStandupTs = null;
   state.lastThreadTs = null;
   state.lastThreadUsers = [];
@@ -289,16 +294,13 @@ async function scheduleChecks() {
   for (const [channelId, state] of channels.entries()) {
     if (!state.active) continue;
 
-    if (!state.lastStandupTs || !state.lastThreadTs) {
+    if (!state.nextStandupAt) {
       continue;
     }
 
     const localNow = now.setZone(state.timezone);
-    if (isRunnableWindow(localNow, state.timezone)) {
-      const lastStandupTime = DateTime.fromSeconds(Number(state.lastStandupTs), { zone: state.timezone });
-      if (lastStandupTime.day !== localNow.day) {
-        await sendStandupMessage(channelId);
-      }
+    if (localNow.toMillis() >= state.nextStandupAt.toMillis()) {
+      await sendStandupMessage(channelId);
     }
 
     const reminderTimes = [

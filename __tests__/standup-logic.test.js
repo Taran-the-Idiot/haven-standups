@@ -38,8 +38,8 @@ test('buildReminderText mentions everyone still missing', () => {
 
   assert.match(text, /<@U1>/);
   assert.match(text, /<@U2>/);
-  assert.match(text, /missing/i);
-  assert.match(text, /\*Keep in mind saying why you’re not able to do stuff if you are busy is an update!\*/);
+  assert.match(text, /haven't replied with an update yet/i);
+  assert.match(text, /Keep in mind saying why you’re not able to do stuff if you are busy is an update!/i);
 });
 
 test('buildReminderText returns null when nobody is missing', () => {
