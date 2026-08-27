@@ -26,6 +26,43 @@ function buildReminderText(missingUsers) {
   return `Standup reminder: ${userList || 'No one'} is still missing a reply in this thread. Please post an update of what you did yesterday and what you plan to do today.`;
 }
 
+function getTimezoneOptions() {
+  const zones = Intl.supportedValuesOf ? Intl.supportedValuesOf('timeZone') : [
+    'UTC',
+    'America/New_York',
+    'America/Los_Angeles',
+    'Europe/London',
+    'Europe/Berlin',
+    'Asia/Tokyo',
+    'Australia/Sydney'
+  ];
+
+  const preferred = [
+    'UTC',
+    'America/New_York',
+    'America/Chicago',
+    'America/Denver',
+    'America/Los_Angeles',
+    'Europe/London',
+    'Europe/Paris',
+    'Europe/Berlin',
+    'Asia/Dubai',
+    'Asia/Kolkata',
+    'Asia/Singapore',
+    'Asia/Tokyo',
+    'Australia/Sydney'
+  ];
+
+  const uniqueZones = [...new Set([...preferred, ...zones])];
+  return uniqueZones.map((zone) => ({
+    text: {
+      type: 'plain_text',
+      text: zone
+    },
+    value: zone
+  }));
+}
+
 function isChannelManagerUser(user, channelCreatorId, allowedManagerIds = []) {
   if (!user) return false;
 
@@ -46,5 +83,6 @@ module.exports = {
   nextStandupTime,
   isRunnableWindow,
   buildReminderText,
+  getTimezoneOptions,
   isChannelManagerUser
 };

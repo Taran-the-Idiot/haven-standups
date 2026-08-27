@@ -7,7 +7,8 @@ const {
   buildReminderText,
   isRunnableWindow,
   nextStandupTime,
-  isChannelManagerUser
+  isChannelManagerUser,
+  getTimezoneOptions
 } = require('./standup-logic');
 
 const app = new App({
@@ -116,30 +117,115 @@ async function isChannelManager(channelId, userId) {
   }
 }
 
-app.command('/activate-standup', async ({ command, ack, respond }) => {
-  await ack();
-  const channelId = command.channel_id;
-  const userId = command.user_id;
+async function activateStandup(channelId, userId, timezone) {
   const state = getChannelState(channelId);
-  const timezone = command.text?.trim() || 'UTC';
-
   const canActivate = await isChannelManager(channelId, userId);
+
   if (!canActivate) {
-    await respond({
-      text: 'Only channel managers can activate standups in this channel.',
-      response_type: 'ephemeral'
-    });
-    return;
+    return {
+      ok: false,
+      text: 'Only channel managers can activate standups in this channel.'
+    };
   }
 
   state.active = true;
   state.timezone = timezone;
 
-  await respond({
-    text: `Standup bot activated for this channel in ${timezone}. The next morning standup will be sent at 08:00 ${timezone}.`
-  });
-
   await sendStandupMessage(channelId);
+
+  return {
+    ok: true,
+    text: `Standup bot activated for this channel in ${timezone}. The next morning standup will be sent at 08:00 ${timezone}.`
+  };
+}
+
+app.command('/activate-standup', async ({ command, ack, respond }) => {
+  await ack();
+  const channelId = command.channel_id;
+  const userId = command.user_id;
+  const timezoneInput = (command.text || '').trim();
+
+  if (!timezoneInput) {
+    await app.client.views.open({
+      trigger_id: command.trigger_id,
+      view: {
+        type: 'modal',
+        callback_id: 'timezone_setup',
+        private_metadata: JSON.stringify({ channelId, userId }),
+        title: {
+          type: 'plain_text',
+          text: 'Set standup timezone'
+        },
+        submit: {
+          type: 'plain_text',
+          text: 'Activate'
+        },
+        close: {
+          type: 'plain_text',
+          text: 'Cancel'
+        },
+        blocks: [
+          {
+            type: 'input',
+            block_id: 'timezone_block',
+            label: {
+              type: 'plain_text',
+              text: 'Choose the timezone for this channel'
+            },
+            element: {
+              type: 'static_select',
+              action_id: 'timezone_select',
+              placeholder: {
+                type: 'plain_text',
+                text: 'Select a timezone'
+              },
+              options: getTimezoneOptions()
+            }
+          }
+        ]
+      }
+    });
+    return;
+  }
+
+  const result = await activateStandup(channelId, userId, timezoneInput);
+  if (!result.ok) {
+    await respond({
+      text: result.text,
+      response_type: 'ephemeral'
+    });
+    return;
+  }
+
+  await respond({
+    text: result.text
+  });
+});
+
+app.view('timezone_setup', async ({ ack, view, body }) => {
+  await ack();
+
+  const { channelId, userId } = JSON.parse(view.private_metadata || '{}');
+  const timezone = view.state.values.timezone_block.timezone_select.selected_option?.value || 'UTC';
+
+  if (!channelId) {
+    return;
+  }
+
+  const result = await activateStandup(channelId, userId || body.user.id, timezone);
+  if (!result.ok) {
+    await app.client.chat.postEphemeral({
+      channel: channelId,
+      user: body.user.id,
+      text: result.text
+    });
+    return;
+  }
+
+  await app.client.chat.postMessage({
+    channel: channelId,
+    text: result.text
+  });
 });
 
 app.event('app_mention', async ({ event, say }) => {

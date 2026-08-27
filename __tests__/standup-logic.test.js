@@ -6,6 +6,7 @@ const {
   nextStandupTime,
   isRunnableWindow,
   buildReminderText,
+  getTimezoneOptions,
   isChannelManagerUser
 } = require('../src/standup-logic');
 
@@ -45,4 +46,12 @@ test('isChannelManagerUser allows channel creators and owners', () => {
   assert.equal(isChannelManagerUser({ id: 'U456', is_owner: true }, 'U789'), true);
   assert.equal(isChannelManagerUser({ id: 'U456', is_admin: false }, 'U789'), false);
   assert.equal(isChannelManagerUser({ id: 'U777', is_admin: false }, 'U789', ['U777']), true);
+});
+
+test('getTimezoneOptions includes timezone names for the selection prompt', () => {
+  const options = getTimezoneOptions();
+
+  assert.ok(options.some((option) => option.value === 'UTC'));
+  assert.ok(options.some((option) => option.value === 'America/New_York'));
+  assert.ok(options.some((option) => option.value === 'Australia/Sydney'));
 });
