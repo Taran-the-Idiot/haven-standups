@@ -1,0 +1,19 @@
+{
+  "name": "haven-standups",
+  "version": "1.0.0",
+  "description": "Slack standup bot that pings missed updates in a channel thread",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "node --watch src/index.js",
+    "test": "node --test"
+  },
+  "dependencies": {
+    "@slack/bolt": "^4.3.0",
+    "dotenv": "^16.4.1",
+    "luxon": "^3.1.0"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
