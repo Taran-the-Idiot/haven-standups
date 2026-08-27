@@ -22,8 +22,12 @@ function isRunnableWindow(currentTime, timezone) {
 }
 
 function buildReminderText(missingUsers) {
+  if (!missingUsers || missingUsers.length === 0) {
+    return null;
+  }
+
   const userList = (missingUsers || []).map((user) => `<@${user}>`).join(' ');
-  return `Standup reminder: ${userList || 'No one'} is still missing a reply in this thread. Please post an update of what you did yesterday and what you plan to do today.`;
+  return `Standup reminder: ${userList || 'No one'} - Yall haven't replied with an update yet! *Keep in mind saying why you’re not able to do stuff if you are busy is an update!*`;
 }
 
 function getGmtOffsetOptions() {
@@ -32,7 +36,7 @@ function getGmtOffsetOptions() {
   return offsets.map((offset) => {
     const sign = offset >= 0 ? '+' : '-';
     const label = offset === 0 ? 'GMT+0' : `GMT${sign}${Math.abs(offset)}`;
-    const zone = offset === 0 ? 'UTC' : offset < 0 ? `Etc/GMT+${Math.abs(offset)}` : `Etc/GMT-${offset}`;
+    const zone = offset === 0 ? 'UTC' : `UTC${sign}${Math.abs(offset)}`;
 
     return {
       label,
@@ -70,7 +74,7 @@ function normalizeTimezoneValue(value) {
     return 'UTC';
   }
 
-  return offset < 0 ? `Etc/GMT+${Math.abs(offset)}` : `Etc/GMT-${offset}`;
+  return `UTC${match[1]}${hours}`;
 }
 
 function isChannelManagerUser(user, channelCreatorId, allowedManagerIds = []) {

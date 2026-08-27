@@ -46,9 +46,9 @@ async function sendStandupMessage(channelId) {
   });
 
   const members = result.members || [];
-  const message = await app.client.chat.postMessage({
-    channel: channelId,
-    text: 'Good morning <!channel>! Please post a standup update: what you did yesterday and what you plan to do today.'
+    const message = await app.client.chat.postMessage({
+      channel: channelId,
+      text: 'Good morning <!channel>!\n\n- What did you do yesterday?\n- What do you plan to do today?\n\n_If you did not do anything yesterday, still post an update so we know you are up to date._'
   });
 
   state.lastStandupTs = message.ts;
@@ -83,8 +83,8 @@ async function checkThreadReminders(channelId) {
 
   const missingUsers = computeMissingUsers(members, participants);
 
-  if (missingUsers.length > 0) {
-    const text = buildReminderText(missingUsers);
+  const text = buildReminderText(missingUsers);
+  if (text) {
     await app.client.chat.postMessage({
       channel: channelId,
       thread_ts: state.lastThreadTs,
@@ -108,6 +108,16 @@ function resetChannelState(channelId) {
   state.lastThreadTs = null;
   state.lastThreadUsers = [];
   return state;
+}
+
+function formatDurationUntilStandup(timezone) {
+  const now = DateTime.now().setZone(timezone);
+  const next = nextStandupTime(timezone, now);
+  const totalMinutes = Math.max(0, Math.round(next.diff(now, 'minutes').minutes));
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+
+  return `${hours}h ${minutes}m`;
 }
 
 async function isChannelManager(channelId, userId) {
@@ -145,6 +155,8 @@ async function activateStandup(channelId, userId, timezone) {
   state.lastThreadTs = null;
   state.lastThreadUsers = [];
 
+  console.log(`Standup activation for ${channelId} will send the first standup in ${formatDurationUntilStandup(timezone)}.`);
+
   return {
     ok: true,
     text: `Standup bot activated for this channel in ${timezone}. The next morning standup will be sent at 08:00 ${timezone}.`
@@ -155,63 +167,48 @@ app.command('/activate-standup', async ({ command, ack, respond }) => {
   await ack();
   const channelId = command.channel_id;
   const userId = command.user_id;
-  const timezoneInput = normalizeTimezoneValue((command.text || '').trim());
 
-  if (!timezoneInput || timezoneInput === 'UTC' && !(command.text || '').trim()) {
-    await app.client.views.open({
-      trigger_id: command.trigger_id,
-      view: {
-        type: 'modal',
-        callback_id: 'timezone_setup',
-        private_metadata: JSON.stringify({ channelId, userId }),
-        title: {
-          type: 'plain_text',
-          text: 'Set standup timezone'
-        },
-        submit: {
-          type: 'plain_text',
-          text: 'Activate'
-        },
-        close: {
-          type: 'plain_text',
-          text: 'Cancel'
-        },
-        blocks: [
-          {
-            type: 'input',
-            block_id: 'timezone_block',
-            label: {
+  await app.client.views.open({
+    trigger_id: command.trigger_id,
+    view: {
+      type: 'modal',
+      callback_id: 'timezone_setup',
+      private_metadata: JSON.stringify({ channelId, userId }),
+      title: {
+        type: 'plain_text',
+        text: 'Set standup timezone'
+      },
+      submit: {
+        type: 'plain_text',
+        text: 'Activate'
+      },
+      close: {
+        type: 'plain_text',
+        text: 'Cancel'
+      },
+      blocks: [
+        {
+          type: 'input',
+          block_id: 'timezone_block',
+          label: {
+            type: 'plain_text',
+            text: 'Choose the timezone for this channel'
+          },
+          element: {
+            type: 'static_select',
+            action_id: 'timezone_select',
+            placeholder: {
               type: 'plain_text',
-              text: 'Choose the timezone for this channel'
+              text: 'Select a timezone'
             },
-            element: {
-              type: 'static_select',
-              action_id: 'timezone_select',
-              placeholder: {
-                type: 'plain_text',
-                text: 'Select a timezone'
-              },
-              options: getTimezoneOptions()
-            }
+            options: getTimezoneOptions()
           }
-        ]
-      }
-    });
-    return;
-  }
-
-  const result = await activateStandup(channelId, userId, timezoneInput);
-  if (!result.ok) {
-    await respond({
-      text: result.text,
-      response_type: 'ephemeral'
-    });
-    return;
-  }
-
-  await respond({
-    text: result.text
+        }
+      ]
+    }
   });
+
+  return;
 });
 
 app.command('/reset-standup', async ({ command, ack, respond }) => {
