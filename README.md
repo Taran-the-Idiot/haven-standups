@@ -13,15 +13,18 @@ A Slack bot that helps teams run daily standups.
 
 ## Local setup
 
-1. Install dependencies:
-   - `python3 -m pip install -r requirements.txt`
-2. Copy the environment example:
+1. Create and activate a virtualenv (keeps deps off the system Python):
+   - `python3 -m venv .venv`
+   - `source .venv/bin/activate`
+2. Install dependencies:
+   - `python -m pip install -r requirements.txt`
+3. Copy the environment example:
    - `cp .env.example .env`
-3. Fill in your Slack credentials and a debug reset key.
-4. Start the app:
-   - `python3 app.py`
-5. Run tests:
-   - `python3 -m unittest discover -s tests`
+4. Fill in your Slack credentials and a debug reset key.
+5. Start the app (must be the venv's Python, or you get `ModuleNotFoundError`):
+   - `python app.py`  (or `.venv/bin/python app.py` without activating)
+6. Run tests:
+   - `python -m unittest discover -s tests`
 
 ## Slack configuration
 
