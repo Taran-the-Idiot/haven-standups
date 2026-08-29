@@ -34,6 +34,7 @@
         "chat:write",
         "channels:read",
         "groups:read",
+        "usergroups:read",
         "im:read",
         "im:history",
         "mpim:read",

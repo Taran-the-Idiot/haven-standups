@@ -21,6 +21,7 @@ const app = new App({
 });
 
 const channels = new Map();
+const standupTimers = new Map();
 
 function getChannelState(channelId) {
   if (!channels.has(channelId)) {
@@ -28,6 +29,8 @@ function getChannelState(channelId) {
       active: false,
       timezone: 'UTC',
       nextStandupAt: null,
+      pingGroupId: null,
+      pingGroupUsers: [],
       lastStandupTs: null,
       lastThreadTs: null,
       lastThreadUsers: []
@@ -37,30 +40,124 @@ function getChannelState(channelId) {
   return channels.get(channelId);
 }
 
+function clearStandupTimer(channelId) {
+  const existingTimer = standupTimers.get(channelId);
+  if (existingTimer) {
+    clearTimeout(existingTimer);
+    standupTimers.delete(channelId);
+  }
+}
+
+async function runStandupPost(channelId, source) {
+  try {
+    await sendStandupMessage(channelId);
+  } catch (error) {
+    console.error(`Failed to send standup for ${channelId} from ${source}:`, error);
+  }
+}
+
+function normalizePingGroupId(value) {
+  if (!value) {
+    return '';
+  }
+
+  const trimmed = String(value).trim();
+  const mentionMatch = trimmed.match(/^<!subteam\^([A-Z0-9]+)(?:\|[^>]+)?>$/i);
+  if (mentionMatch) {
+    return mentionMatch[1];
+  }
+
+  const directMatch = trimmed.match(/^([A-Z0-9]+)$/i);
+  if (directMatch) {
+    return directMatch[1];
+  }
+
+  return '';
+}
+
+async function fetchPingGroupUsers(pingGroupId) {
+  const response = await app.client.usergroups.users.list({
+    usergroup: pingGroupId
+  });
+
+  return response.users || [];
+}
+
+async function fetchPingGroupOptions() {
+  const response = await app.client.usergroups.list();
+  const usergroups = response.usergroups || [];
+
+  return usergroups
+    .filter((group) => !group.is_usergroup)
+    .map((group) => ({
+      text: {
+        type: 'plain_text',
+        text: group.handle || group.name
+      },
+      value: group.id
+    }))
+    .sort((left, right) => left.text.text.localeCompare(right.text.text));
+}
+
+function scheduleStandupTimer(channelId) {
+  const state = getChannelState(channelId);
+
+  clearStandupTimer(channelId);
+
+  if (!state.active || !state.nextStandupAt) {
+    return;
+  }
+
+  const now = DateTime.now().setZone(state.timezone);
+  const delay = Math.max(0, Math.ceil(state.nextStandupAt.diff(now).as('milliseconds')));
+
+  const timer = setTimeout(async () => {
+    standupTimers.delete(channelId);
+
+    const currentState = getChannelState(channelId);
+    if (!currentState.active || !currentState.nextStandupAt) {
+      return;
+    }
+
+    const currentNow = DateTime.now().setZone(currentState.timezone);
+    if (currentNow.toMillis() >= currentState.nextStandupAt.toMillis()) {
+      await runStandupPost(channelId, 'timer');
+    }
+  }, delay);
+
+  standupTimers.set(channelId, timer);
+}
+
 async function sendStandupMessage(channelId) {
   const state = getChannelState(channelId);
   const now = DateTime.now().setZone(state.timezone);
 
-  const result = await app.client.conversations.members({
-    channel: channelId,
-    limit: 200
-  });
+  if (!state.pingGroupId) {
+    throw new Error('Ping group is not configured for this channel');
+  }
 
-  const members = result.members || [];
-    const message = await app.client.chat.postMessage({
-      channel: channelId,
-      text: 'Good morning <!channel>!\n\n- What did you do yesterday?\n- What do you plan to do today?\n\n_If you did not do anything yesterday, still post an update so we know you are up to date._'
+  try {
+    state.pingGroupUsers = await fetchPingGroupUsers(state.pingGroupId);
+  } catch (error) {
+    console.error(`Failed to load ping group ${state.pingGroupId} for ${channelId}:`, error);
+  }
+
+  const pingText = `<!subteam^${state.pingGroupId}>`;
+  const message = await app.client.chat.postMessage({
+    channel: channelId,
+    text: `Good morning ${pingText}!\n\n- What did you do yesterday?\n- What do you plan to do today?\n\n_If you did not do anything yesterday, still post an update so we know you are up to date._`
   });
 
   state.lastStandupTs = message.ts;
   state.lastThreadTs = message.ts;
   state.lastThreadUsers = [];
 
-  if (members.length) {
-    state.lastThreadUsers = members;
+  if (state.pingGroupUsers.length) {
+    state.lastThreadUsers = state.pingGroupUsers;
   }
 
   state.nextStandupAt = nextStandupTime(state.timezone, now);
+  scheduleStandupTimer(channelId);
 
   const nextPing = nextStandupTime(state.timezone, now);
   console.log(`Standup scheduled for ${channelId} at ${nextPing.toISO()}`);
@@ -108,9 +205,12 @@ function resetChannelState(channelId) {
   state.active = false;
   state.timezone = 'UTC';
   state.nextStandupAt = null;
+  state.pingGroupId = null;
+  state.pingGroupUsers = [];
   state.lastStandupTs = null;
   state.lastThreadTs = null;
   state.lastThreadUsers = [];
+  clearStandupTimer(channelId);
   return state;
 }
 
@@ -142,7 +242,7 @@ async function isChannelManager(channelId, userId) {
   }
 }
 
-async function activateStandup(channelId, userId, timezone) {
+async function activateStandup(channelId, userId, timezone, pingGroupId) {
   const state = getChannelState(channelId);
   const canActivate = await isChannelManager(channelId, userId);
 
@@ -153,12 +253,40 @@ async function activateStandup(channelId, userId, timezone) {
     };
   }
 
+  if (!pingGroupId) {
+    return {
+      ok: false,
+      text: 'Please provide a valid ping group ID for this channel.'
+    };
+  }
+
+  let pingGroupUsers = [];
+  try {
+    pingGroupUsers = await fetchPingGroupUsers(pingGroupId);
+  } catch (error) {
+    console.error(`Failed to validate ping group ${pingGroupId}:`, error);
+    return {
+      ok: false,
+      text: 'That ping group could not be loaded. Check the user group ID and try again.'
+    };
+  }
+
+  if (!pingGroupUsers.length) {
+    return {
+      ok: false,
+      text: 'That ping group has no members to notify.'
+    };
+  }
+
   state.active = true;
   state.timezone = timezone;
+  state.pingGroupId = pingGroupId;
+  state.pingGroupUsers = pingGroupUsers;
   state.nextStandupAt = nextStandupTime(timezone, DateTime.now().setZone(timezone));
   state.lastStandupTs = null;
   state.lastThreadTs = null;
   state.lastThreadUsers = [];
+  scheduleStandupTimer(channelId);
 
   console.log(`Standup activation for ${channelId} will send the first standup in ${formatDurationUntilStandup(timezone)}.`);
 
@@ -172,6 +300,26 @@ app.command('/activate-standup', async ({ command, ack, respond }) => {
   await ack();
   const channelId = command.channel_id;
   const userId = command.user_id;
+
+  let pingGroupOptions = [];
+  try {
+    pingGroupOptions = await fetchPingGroupOptions();
+  } catch (error) {
+    console.error('Failed to load ping groups for activation modal:', error);
+    await respond({
+      text: 'I could not load ping groups right now. Check that the app has usergroups:read and try again.',
+      response_type: 'ephemeral'
+    });
+    return;
+  }
+
+  if (!pingGroupOptions.length) {
+    await respond({
+      text: 'No ping groups were found for this workspace.',
+      response_type: 'ephemeral'
+    });
+    return;
+  }
 
   await app.client.views.open({
     trigger_id: command.trigger_id,
@@ -208,7 +356,24 @@ app.command('/activate-standup', async ({ command, ack, respond }) => {
             },
             options: getTimezoneOptions()
           }
-        }
+        },
+        {
+          type: 'input',
+          block_id: 'ping_group_block',
+          label: {
+            type: 'plain_text',
+            text: 'Choose the ping group'
+          },
+          element: {
+            type: 'static_select',
+            action_id: 'ping_group_select',
+            placeholder: {
+              type: 'plain_text',
+              text: 'Select a ping group'
+            },
+            options: pingGroupOptions
+          }
+          }
       ]
     }
   });
@@ -243,12 +408,14 @@ app.view('timezone_setup', async ({ ack, view, body }) => {
 
   const { channelId, userId } = JSON.parse(view.private_metadata || '{}');
   const timezone = normalizeTimezoneValue(view.state.values.timezone_block.timezone_select.selected_option?.value);
+  const pingGroupValue = view.state.values.ping_group_block.ping_group_select.selected_option?.value;
+  const pingGroupId = normalizePingGroupId(pingGroupValue);
 
   if (!channelId) {
     return;
   }
 
-  const result = await activateStandup(channelId, userId || body.user.id, timezone);
+  const result = await activateStandup(channelId, userId || body.user.id, timezone, pingGroupId);
   if (!result.ok) {
     await app.client.chat.postEphemeral({
       channel: channelId,
@@ -300,7 +467,7 @@ async function scheduleChecks() {
 
     const localNow = now.setZone(state.timezone);
     if (localNow.toMillis() >= state.nextStandupAt.toMillis()) {
-      await sendStandupMessage(channelId);
+      await runStandupPost(channelId, 'poll');
     }
 
     const reminderTimes = [
