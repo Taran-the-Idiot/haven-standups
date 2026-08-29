@@ -2,14 +2,17 @@ from __future__ import annotations
 
 import logging
 import os
+import ssl as ssl_lib
 import threading
 import time
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 
+import certifi
 from dotenv import load_dotenv
 from slack_bolt import App
 from slack_bolt.adapter.socket_mode import SocketModeHandler
+from slack_sdk import WebClient
 from slack_sdk.errors import SlackApiError
 
 from standup_logic import (
@@ -28,8 +31,17 @@ load_dotenv()
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+# Some Python builds (notably the python.org macOS installer) ship without a
+# usable system CA bundle, which makes every HTTPS call to Slack fail with
+# CERTIFICATE_VERIFY_FAILED. Pin the client to certifi's bundle so both the Web
+# API calls and the Socket Mode websocket verify correctly on any machine.
+ssl_context = ssl_lib.create_default_context(cafile=certifi.where())
+
 app = App(
-    token=os.environ.get("SLACK_BOT_TOKEN"),
+    client=WebClient(
+        token=os.environ.get("SLACK_BOT_TOKEN"),
+        ssl=ssl_context,
+    ),
     signing_secret=os.environ.get("SLACK_SIGNING_SECRET"),
     token_verification_enabled=False,
 )
@@ -113,7 +125,8 @@ def fetch_ping_group_options(client, query: str | None = None) -> list[dict[str,
 
     options: list[dict[str, str]] = []
     for group in usergroups:
-        if group.get("is_usergroup"):
+        # Skip deleted user groups; keep the active ones.
+        if group.get("date_delete"):
             continue
 
         label = group.get("handle") or group.get("name") or group.get("id")

@@ -42,6 +42,6 @@ Create a new Slack app using Socket Mode and add the following scopes:
 The app should be installed to each target channel, and the channel manager can then run:
 
 - `/activate-standup`
-- `/reset-standup <RESET_KEY>`
+- `/reset-standup`
 
 This keeps the bot dormant until explicitly enabled for a channel. The reset command clears the bot’s in-memory state for debugging and is protected by the `RESET_KEY` value in `.env`.

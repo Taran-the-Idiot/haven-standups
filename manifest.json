@@ -30,6 +30,7 @@
                 "channels:read",
                 "groups:read",
                 "usergroups:read",
+                "users:read",
                 "im:read",
                 "im:history",
                 "mpim:read",

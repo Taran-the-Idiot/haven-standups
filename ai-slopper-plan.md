@@ -1,5 +1,8 @@
-Create a slackbot that sends a channel ping every morning in the channel it is in and then every 2 hours, let it ping anyone who hasnt replied in the thread of the message until the next days ping arrive. the channel pings will be accompanied by standups which is a message telling people to post an update of what they did yesterday and what they plan to do today.
+create a slackbot that pings a user group every morning and then sends a ping in the thread to every person who has not replied yet. this is a daily standup type thing. look at the existing code to see what the base it off of.
 
-the slack bot can be added to every channel however it must stay dormant until a channel manager runs a command that activates it and also sets the timezone for the slack bot to operate under.
+The bot can be added to any channel, however a channel manager is the only person who can activate it and they must use the /activate-standup command to pull up a menu where they can enter their timezone and the user group for the bot to ping in that respective channel.
 
-the pings in the thread should occur every 2 hours and the pings will be for people who have not yet replied to the message but are in the channel.
+The channel manager can also use the /reset-standup command to stop the standup bot from running in the channel or wipe the activation settings. 
+
+please have the bot set to ping every day at 8am in the local timezone for each channel.
+
