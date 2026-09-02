@@ -12,7 +12,7 @@ from pathlib import Path
 import certifi
 from dotenv import load_dotenv
 from slack_bolt import App
-from slack_bolt.adapter.socket_mode import SocketModeHandler
+from slack_bolt.adapter.socket_mode.websocket_client import SocketModeHandler
 from slack_sdk import WebClient
 from slack_sdk.errors import SlackApiError
 
@@ -171,7 +171,10 @@ def fetch_ping_group_options(client, query: str | None = None) -> list[dict[str,
         )
 
     options.sort(key=lambda item: item["text"]["text"].lower())
-    return options
+    # Slack's external_select accepts at most 100 options, and returning the
+    # whole workspace's user groups can push the Socket Mode ack past the 64 KiB
+    # frame limit, so cap the list here.
+    return options[:100]
 
 
 def reset_channel_state(channel_id: str) -> ChannelState:
@@ -358,7 +361,7 @@ def scheduler_loop() -> None:
         time.sleep(60)
 
 
-@app.command("/activate-standup-dev")
+@app.command("/activate-standup")
 def activate_command(ack, body, respond):
     ack()
     channel_id = body["channel_id"]
@@ -432,7 +435,7 @@ def load_ping_group_options(ack, body):
         ack(options=[])
 
 
-@app.command("/reset-standup-dev")
+@app.command("/reset-standup")
 def reset_command(ack, body, respond):
     ack()
     channel_id = body["channel_id"]
