@@ -6,3 +6,5 @@ coverage/
 __pycache__/
 .pytest_cache/
 .venv/
+standup_state.json
+standup_state.json.tmp

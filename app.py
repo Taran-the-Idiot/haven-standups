@@ -1,12 +1,13 @@
 from __future__ import annotations
 
+import json
 import logging
 import os
 import ssl as ssl_lib
 import threading
 import time
-from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 
 import certifi
 from dotenv import load_dotenv
@@ -16,14 +17,17 @@ from slack_sdk import WebClient
 from slack_sdk.errors import SlackApiError
 
 from standup_logic import (
+    ChannelState,
     build_reminder_text,
     compute_missing_users,
+    deserialize_channels,
     get_timezone_options,
     is_channel_manager_user,
     is_runnable_window,
     matches_reset_key,
     next_standup_time,
     normalize_timezone_value,
+    serialize_channels,
 )
 
 load_dotenv()
@@ -46,21 +50,46 @@ app = App(
     token_verification_enabled=False,
 )
 
-channels: dict[str, "ChannelState"] = {}
+channels: dict[str, ChannelState] = {}
 standup_timers: dict[str, threading.Timer] = {}
 
+# Bot state (which channels are active, their timezone/ping group, and the
+# next scheduled times) lives only in the `channels` dict above, so without
+# persistence a process restart would silently deactivate every channel.
+# Persist it to a small JSON file and reload it on startup.
+STATE_FILE = Path(os.environ.get("STANDUP_STATE_FILE", "standup_state.json"))
+_state_file_lock = threading.Lock()
 
-@dataclass
-class ChannelState:
-    active: bool = False
-    timezone: str = "UTC"
-    next_standup_at: datetime | None = None
-    next_reminder_at: datetime | None = None
-    ping_group_id: str | None = None
-    ping_group_users: list[str] = field(default_factory=list)
-    last_standup_ts: str | None = None
-    last_thread_ts: str | None = None
-    last_thread_users: list[str] = field(default_factory=list)
+
+def save_state() -> None:
+    with _state_file_lock:
+        try:
+            data = serialize_channels(channels)
+            tmp_path = STATE_FILE.with_suffix(STATE_FILE.suffix + ".tmp")
+            tmp_path.write_text(json.dumps(data, indent=2))
+            tmp_path.replace(STATE_FILE)
+        except OSError:
+            logger.exception("Failed to save standup state to %s", STATE_FILE)
+
+
+def load_state() -> None:
+    if not STATE_FILE.exists():
+        return
+
+    try:
+        raw = json.loads(STATE_FILE.read_text())
+    except (OSError, json.JSONDecodeError):
+        logger.exception("Failed to read standup state from %s; starting with no state", STATE_FILE)
+        return
+
+    channels.update(deserialize_channels(raw))
+    logger.info("Loaded standup state for %d channel(s) from %s", len(channels), STATE_FILE)
+
+
+def restore_standup_timers() -> None:
+    for channel_id, state in channels.items():
+        if state.active:
+            schedule_standup_timer(channel_id)
 
 
 def get_channel_state(channel_id: str) -> ChannelState:
@@ -157,6 +186,7 @@ def reset_channel_state(channel_id: str) -> ChannelState:
     state.last_thread_ts = None
     state.last_thread_users = []
     clear_standup_timer(channel_id)
+    save_state()
     return state
 
 
@@ -208,6 +238,7 @@ def activate_standup(channel_id: str, user_id: str, timezone_value: str, ping_gr
     state.last_thread_ts = None
     state.last_thread_users = []
     schedule_standup_timer(channel_id)
+    save_state()
 
     logger.info(
         "Standup activation for %s will send the first standup in %s.",
@@ -242,7 +273,7 @@ def send_standup_message(channel_id: str) -> None:
                 f"Good morning {ping_text}!\n\n"
                 "- What did you do yesterday?\n"
                 "- What do you plan to do today?\n\n"
-                "_If you did not do anything yesterday, still post an update so we know you are up to date._"
+                "_If you didn’t do anything yesterday and/or won’t get anything done today that’s fine! Please just say so & why you won’t get anything done instead of not replying._"
             ),
         },
     )
@@ -253,6 +284,7 @@ def send_standup_message(channel_id: str) -> None:
     state.next_standup_at = next_standup_time(state.timezone, now)
     state.next_reminder_at = now.astimezone(state.next_standup_at.tzinfo or timezone.utc) + timedelta(hours=2)
     schedule_standup_timer(channel_id)
+    save_state()
 
     logger.info("Standup scheduled for %s at %s", channel_id, state.next_standup_at.isoformat())
 
@@ -314,6 +346,7 @@ def schedule_checks() -> None:
                 state.next_reminder_at = state.next_reminder_at + timedelta(hours=2)
                 if state.next_reminder_at >= state.next_standup_at:
                     state.next_reminder_at = None
+                save_state()
 
 
 def scheduler_loop() -> None:
@@ -426,6 +459,7 @@ def track_thread_replies(body, event, logger):
     if event["thread_ts"] == state.last_thread_ts and event.get("user"):
         if event["user"] not in state.last_thread_users:
             state.last_thread_users.append(event["user"])
+            save_state()
 
 
 @app.event("app_mention")
@@ -440,6 +474,9 @@ if __name__ == "__main__":
     app_token = os.environ.get("SLACK_APP_TOKEN")
     if not app_token:
         raise RuntimeError("SLACK_APP_TOKEN is required for Socket Mode")
+
+    load_state()
+    restore_standup_timers()
 
     threading.Thread(target=scheduler_loop, daemon=True).start()
     SocketModeHandler(app, app_token).start()

@@ -1,11 +1,73 @@
 from __future__ import annotations
 
 import re
+from dataclasses import dataclass, field
 from datetime import datetime, time, timedelta, timezone
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 from typing import Iterable, Optional
 
 GMT_OFFSET_RANGE = list(range(-12, 15))
+
+
+@dataclass
+class ChannelState:
+    active: bool = False
+    timezone: str = "UTC"
+    next_standup_at: datetime | None = None
+    next_reminder_at: datetime | None = None
+    ping_group_id: str | None = None
+    ping_group_users: list[str] = field(default_factory=list)
+    last_standup_ts: str | None = None
+    last_thread_ts: str | None = None
+    last_thread_users: list[str] = field(default_factory=list)
+
+
+def _parse_iso_datetime(value: str | None) -> datetime | None:
+    if not value:
+        return None
+    return datetime.fromisoformat(value)
+
+
+def serialize_channel_state(state: ChannelState) -> dict:
+    return {
+        "active": state.active,
+        "timezone": state.timezone,
+        "next_standup_at": state.next_standup_at.isoformat() if state.next_standup_at else None,
+        "next_reminder_at": state.next_reminder_at.isoformat() if state.next_reminder_at else None,
+        "ping_group_id": state.ping_group_id,
+        "ping_group_users": list(state.ping_group_users),
+        "last_standup_ts": state.last_standup_ts,
+        "last_thread_ts": state.last_thread_ts,
+        "last_thread_users": list(state.last_thread_users),
+    }
+
+
+def deserialize_channel_state(data: dict) -> ChannelState:
+    return ChannelState(
+        active=bool(data.get("active", False)),
+        timezone=data.get("timezone") or "UTC",
+        next_standup_at=_parse_iso_datetime(data.get("next_standup_at")),
+        next_reminder_at=_parse_iso_datetime(data.get("next_reminder_at")),
+        ping_group_id=data.get("ping_group_id"),
+        ping_group_users=list(data.get("ping_group_users") or []),
+        last_standup_ts=data.get("last_standup_ts"),
+        last_thread_ts=data.get("last_thread_ts"),
+        last_thread_users=list(data.get("last_thread_users") or []),
+    )
+
+
+def serialize_channels(channels: dict[str, ChannelState]) -> dict:
+    return {channel_id: serialize_channel_state(state) for channel_id, state in channels.items()}
+
+
+def deserialize_channels(data: dict | None) -> dict[str, ChannelState]:
+    result: dict[str, ChannelState] = {}
+    for channel_id, state_data in (data or {}).items():
+        try:
+            result[channel_id] = deserialize_channel_state(state_data)
+        except (TypeError, ValueError):
+            continue
+    return result
 
 
 def compute_missing_users(members: Iterable[str] | None, replies: Iterable[str] | None) -> list[str]:
@@ -81,7 +143,7 @@ def build_reminder_text(missing_users: Iterable[str] | None) -> str | None:
     user_list = " ".join(f"<@{user}>" for user in users)
     return (
         f"Standup reminder: {user_list} - Yall haven't replied with an update yet! "
-        "*Keep in mind saying why you’re not able to do stuff if you are busy is an update!*"
+        "*Keep in mind saying why you’re not able to do stuff if you are busy is still an update!*"
     )
 
 
