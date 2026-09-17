@@ -5,14 +5,22 @@ from datetime import datetime, timezone
 import unittest
 
 from standup_logic import (
+    DEFAULT_REMINDER_INTERVAL_HOURS,
+    DEFAULT_STANDUP_FREQUENCY,
     build_reminder_text,
     compute_missing_users,
+    deserialize_channel_state,
+    get_reminder_interval_options,
+    get_standup_frequency_options,
     get_timezone_options,
     is_channel_manager_user,
     is_runnable_window,
     matches_reset_key,
     next_standup_time,
+    normalize_reminder_interval_hours,
+    normalize_standup_frequency,
     normalize_timezone_value,
+    serialize_channel_state,
 )
 
 
@@ -55,6 +63,79 @@ class StandupLogicTests(unittest.TestCase):
     def test_reset_key(self):
         self.assertTrue(matches_reset_key("secret", "secret"))
         self.assertFalse(matches_reset_key("secret", "other"))
+
+
+class StandupFrequencyTests(unittest.TestCase):
+    def test_next_standup_time_respects_frequency(self):
+        # 09:00 local, so today's 08:00 has passed and we step by the cadence.
+        now = datetime(2026, 8, 27, 13, 0, tzinfo=timezone.utc)
+        self.assertEqual(
+            next_standup_time("UTC-4", now, "daily").strftime("%Y-%m-%d %H:%M"),
+            "2026-08-28 08:00",
+        )
+        self.assertEqual(
+            next_standup_time("UTC-4", now, "every_other_day").strftime("%Y-%m-%d %H:%M"),
+            "2026-08-29 08:00",
+        )
+        self.assertEqual(
+            next_standup_time("UTC-4", now, "weekly").strftime("%Y-%m-%d %H:%M"),
+            "2026-09-03 08:00",
+        )
+
+    def test_next_standup_time_uses_todays_slot_when_still_ahead(self):
+        # 06:00 local: the first standup lands today whatever the cadence.
+        now = datetime(2026, 8, 27, 10, 0, tzinfo=timezone.utc)
+        self.assertEqual(
+            next_standup_time("UTC-4", now, "weekly").strftime("%Y-%m-%d %H:%M"),
+            "2026-08-27 08:00",
+        )
+
+    def test_normalize_standup_frequency(self):
+        self.assertEqual(normalize_standup_frequency("weekly"), "weekly")
+        self.assertEqual(normalize_standup_frequency("Every Other Day"), "every_other_day")
+        self.assertEqual(normalize_standup_frequency("nonsense"), DEFAULT_STANDUP_FREQUENCY)
+        self.assertEqual(normalize_standup_frequency(None), DEFAULT_STANDUP_FREQUENCY)
+
+    def test_normalize_reminder_interval_hours(self):
+        self.assertEqual(normalize_reminder_interval_hours("3"), 3)
+        self.assertEqual(normalize_reminder_interval_hours(99), DEFAULT_REMINDER_INTERVAL_HOURS)
+        self.assertEqual(normalize_reminder_interval_hours(None), DEFAULT_REMINDER_INTERVAL_HOURS)
+
+    def test_options_mark_the_recommended_choice(self):
+        frequency_labels = [option["text"]["text"] for option in get_standup_frequency_options()]
+        self.assertIn("Every day (recommended)", frequency_labels)
+        interval_labels = [option["text"]["text"] for option in get_reminder_interval_options()]
+        self.assertIn("Every 2 hours (recommended)", interval_labels)
+        self.assertIn("Every hour", interval_labels)
+
+
+class StateCompatibilityTests(unittest.TestCase):
+    def test_state_without_new_keys_falls_back_to_defaults(self):
+        legacy = {
+            "active": True,
+            "timezone": "UTC-5",
+            "next_standup_at": "2026-09-03T08:00:00-05:00",
+            "ping_group_id": "S123",
+        }
+        state = deserialize_channel_state(legacy)
+        self.assertEqual(state.standup_frequency, DEFAULT_STANDUP_FREQUENCY)
+        self.assertEqual(state.reminder_interval_hours, DEFAULT_REMINDER_INTERVAL_HOURS)
+        self.assertIsNone(state.reminder_end_at)
+        # Everything the old file did carry survives untouched.
+        self.assertTrue(state.active)
+        self.assertEqual(state.timezone, "UTC-5")
+        self.assertEqual(state.ping_group_id, "S123")
+
+    def test_bad_values_fall_back_instead_of_raising(self):
+        state = deserialize_channel_state({"standup_frequency": "fortnightly", "reminder_interval_hours": "soon"})
+        self.assertEqual(state.standup_frequency, DEFAULT_STANDUP_FREQUENCY)
+        self.assertEqual(state.reminder_interval_hours, DEFAULT_REMINDER_INTERVAL_HOURS)
+
+    def test_round_trip(self):
+        state = deserialize_channel_state({"standup_frequency": "weekly", "reminder_interval_hours": 6})
+        restored = deserialize_channel_state(serialize_channel_state(state))
+        self.assertEqual(restored.standup_frequency, "weekly")
+        self.assertEqual(restored.reminder_interval_hours, 6)
 
 
 if __name__ == "__main__":

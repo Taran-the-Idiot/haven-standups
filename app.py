@@ -17,17 +17,28 @@ from slack_sdk import WebClient
 from slack_sdk.errors import SlackApiError
 
 from standup_logic import (
+    DEFAULT_REMINDER_INTERVAL_HOURS,
+    DEFAULT_STANDUP_FREQUENCY,
+    REMINDER_WINDOW_HOURS,
     ChannelState,
     build_reminder_text,
     compute_missing_users,
+    describe_reminder_interval,
     deserialize_channels,
+    get_default_reminder_interval_option,
+    get_default_standup_frequency_option,
+    get_reminder_interval_options,
+    get_standup_frequency_options,
     get_timezone_options,
     is_channel_manager_user,
     is_runnable_window,
     matches_reset_key,
     next_standup_time,
+    normalize_reminder_interval_hours,
+    normalize_standup_frequency,
     normalize_timezone_value,
     serialize_channels,
+    standup_frequency_label,
 )
 
 load_dotenv()
@@ -181,8 +192,11 @@ def reset_channel_state(channel_id: str) -> ChannelState:
     state = get_channel_state(channel_id)
     state.active = False
     state.timezone = "UTC"
+    state.standup_frequency = DEFAULT_STANDUP_FREQUENCY
+    state.reminder_interval_hours = DEFAULT_REMINDER_INTERVAL_HOURS
     state.next_standup_at = None
     state.next_reminder_at = None
+    state.reminder_end_at = None
     state.ping_group_id = None
     state.ping_group_users = []
     state.last_standup_ts = None
@@ -193,9 +207,9 @@ def reset_channel_state(channel_id: str) -> ChannelState:
     return state
 
 
-def format_duration_until_standup(timezone_value: str) -> str:
+def format_duration_until_standup(timezone_value: str, frequency: str = DEFAULT_STANDUP_FREQUENCY) -> str:
     now = datetime.now(timezone.utc)
-    next_run = next_standup_time(timezone_value, now)
+    next_run = next_standup_time(timezone_value, now, frequency)
     total_minutes = max(0, round((next_run - now.astimezone(next_run.tzinfo or timezone.utc)).total_seconds() / 60))
     hours = total_minutes // 60
     minutes = total_minutes % 60
@@ -213,7 +227,14 @@ def is_channel_manager(client, channel_id: str, user_id: str) -> bool:
         return False
 
 
-def activate_standup(channel_id: str, user_id: str, timezone_value: str, ping_group_id: str) -> dict[str, object]:
+def activate_standup(
+    channel_id: str,
+    user_id: str,
+    timezone_value: str,
+    ping_group_id: str,
+    standup_frequency: str = DEFAULT_STANDUP_FREQUENCY,
+    reminder_interval_hours: int = DEFAULT_REMINDER_INTERVAL_HOURS,
+) -> dict[str, object]:
     state = get_channel_state(channel_id)
 
     if not is_channel_manager(app.client, channel_id, user_id):
@@ -233,10 +254,13 @@ def activate_standup(channel_id: str, user_id: str, timezone_value: str, ping_gr
 
     state.active = True
     state.timezone = timezone_value
+    state.standup_frequency = normalize_standup_frequency(standup_frequency)
+    state.reminder_interval_hours = normalize_reminder_interval_hours(reminder_interval_hours)
     state.ping_group_id = ping_group_id
     state.ping_group_users = ping_group_users
-    state.next_standup_at = next_standup_time(timezone_value, datetime.now(timezone.utc))
-    state.next_reminder_at = state.next_standup_at + timedelta(hours=2)
+    state.next_standup_at = next_standup_time(timezone_value, datetime.now(timezone.utc), state.standup_frequency)
+    state.next_reminder_at = state.next_standup_at + timedelta(hours=state.reminder_interval_hours)
+    state.reminder_end_at = state.next_standup_at + timedelta(hours=REMINDER_WINDOW_HOURS)
     state.last_standup_ts = None
     state.last_thread_ts = None
     state.last_thread_users = []
@@ -246,12 +270,18 @@ def activate_standup(channel_id: str, user_id: str, timezone_value: str, ping_gr
     logger.info(
         "Standup activation for %s will send the first standup in %s.",
         channel_id,
-        format_duration_until_standup(timezone_value),
+        format_duration_until_standup(timezone_value, state.standup_frequency),
     )
 
+    cadence = standup_frequency_label(state.standup_frequency).lower()
     return {
         "ok": True,
-        "text": f"Standup bot activated for this channel in {timezone_value}. The next morning standup will be sent at 08:00 {timezone_value}.",
+        "text": (
+            f"Standup bot activated for this channel in {timezone_value}. "
+            f"Standups go out {cadence} at 08:00 {timezone_value}, starting "
+            f"{state.next_standup_at.strftime('%A %b %d')}. "
+            f"Anyone who hasn't replied gets reminded {describe_reminder_interval(state.reminder_interval_hours)}."
+        ),
     }
 
 
@@ -284,8 +314,14 @@ def send_standup_message(channel_id: str) -> None:
     state.last_standup_ts = response.get("ts")
     state.last_thread_ts = response.get("ts")
     state.last_thread_users = list(state.ping_group_users)
-    state.next_standup_at = next_standup_time(state.timezone, now)
-    state.next_reminder_at = now.astimezone(state.next_standup_at.tzinfo or timezone.utc) + timedelta(hours=2)
+    state.next_standup_at = next_standup_time(state.timezone, now, state.standup_frequency)
+    local_now = now.astimezone(state.next_standup_at.tzinfo or timezone.utc)
+    state.next_reminder_at = local_now + timedelta(hours=state.reminder_interval_hours)
+    # Cap the nagging at a day so a weekly cadence doesn't remind all week.
+    state.reminder_end_at = min(
+        local_now + timedelta(hours=REMINDER_WINDOW_HOURS),
+        state.next_standup_at,
+    )
     schedule_standup_timer(channel_id)
     save_state()
 
@@ -344,10 +380,13 @@ def schedule_checks() -> None:
 
         if state.next_reminder_at and state.last_thread_ts:
             current_local = now.astimezone(state.next_reminder_at.tzinfo or timezone.utc)
-            if current_local >= state.next_reminder_at and state.next_standup_at and state.next_reminder_at < state.next_standup_at:
+            # State written before reminder_end_at existed falls back to the
+            # old behaviour of reminding right up to the next standup.
+            reminder_end_at = state.reminder_end_at or state.next_standup_at
+            if current_local >= state.next_reminder_at and reminder_end_at and state.next_reminder_at < reminder_end_at:
                 check_thread_reminders(channel_id)
-                state.next_reminder_at = state.next_reminder_at + timedelta(hours=2)
-                if state.next_reminder_at >= state.next_standup_at:
+                state.next_reminder_at = state.next_reminder_at + timedelta(hours=state.reminder_interval_hours)
+                if state.next_reminder_at >= reminder_end_at:
                     state.next_reminder_at = None
                 save_state()
 
@@ -374,7 +413,7 @@ def activate_command(ack, body, respond):
                 "type": "modal",
                 "callback_id": "standup_setup",
                 "private_metadata": f'{channel_id}:{user_id}',
-                "title": {"type": "plain_text", "text": "Set standup timezone"},
+                "title": {"type": "plain_text", "text": "Set up standups"},
                 "submit": {"type": "plain_text", "text": "Activate"},
                 "close": {"type": "plain_text", "text": "Cancel"},
                 "blocks": [
@@ -387,6 +426,30 @@ def activate_command(ack, body, respond):
                             "action_id": "timezone_select",
                             "placeholder": {"type": "plain_text", "text": "Select a timezone"},
                             "options": get_timezone_options(),
+                        },
+                    },
+                    {
+                        "type": "input",
+                        "block_id": "frequency_block",
+                        "label": {"type": "plain_text", "text": "How often should a standup be sent?"},
+                        "element": {
+                            "type": "static_select",
+                            "action_id": "frequency_select",
+                            "placeholder": {"type": "plain_text", "text": "Select a cadence"},
+                            "options": get_standup_frequency_options(),
+                            "initial_option": get_default_standup_frequency_option(),
+                        },
+                    },
+                    {
+                        "type": "input",
+                        "block_id": "reminder_interval_block",
+                        "label": {"type": "plain_text", "text": "How often should the bot remind people who haven't replied?"},
+                        "element": {
+                            "type": "static_select",
+                            "action_id": "reminder_interval_select",
+                            "placeholder": {"type": "plain_text", "text": "Select a reminder interval"},
+                            "options": get_reminder_interval_options(),
+                            "initial_option": get_default_reminder_interval_option(),
                         },
                     },
                     {
@@ -416,8 +479,23 @@ def handle_setup_submission(ack, body, respond):
     timezone_value = normalize_timezone_value(values["timezone_block"]["timezone_select"]["selected_option"]["value"])
     ping_group_value = values["ping_group_block"]["ping_group_select"]["selected_option"]["value"]
     ping_group_id = parse_ping_group_id(ping_group_value)
+    # Both selects have an initial_option, but read them defensively so an
+    # older cached view (or a Slack payload without them) still activates.
+    standup_frequency = normalize_standup_frequency(
+        (values.get("frequency_block", {}).get("frequency_select", {}).get("selected_option") or {}).get("value")
+    )
+    reminder_interval_hours = normalize_reminder_interval_hours(
+        (values.get("reminder_interval_block", {}).get("reminder_interval_select", {}).get("selected_option") or {}).get("value")
+    )
 
-    result = activate_standup(channel_id, user_id or body["user"]["id"], timezone_value, ping_group_id)
+    result = activate_standup(
+        channel_id,
+        user_id or body["user"]["id"],
+        timezone_value,
+        ping_group_id,
+        standup_frequency,
+        reminder_interval_hours,
+    )
     if not result["ok"]:
         app.client.chat_postEphemeral(channel=channel_id, user=body["user"]["id"], text=result["text"])
         return
@@ -470,7 +548,10 @@ def remind_about_activation(event, say):
     if event.get("channel_type") == "im":
         return
 
-    say("Use /activate-standup to enable standups in this channel. The modal will let you choose timezone and ping group.")
+    say((
+        "Use /activate-standup to enable standups in this channel. The modal will let you choose "
+        "timezone, how often standups are sent, how often the bot reminds people, and the ping group."
+    ))
 
 
 if __name__ == "__main__":

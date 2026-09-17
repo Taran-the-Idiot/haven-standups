@@ -6,10 +6,11 @@ A Slack bot that helps teams run daily standups.
 
 - Adds the bot to any channel without activating it.
 - A channel manager can enable it with a slash command.
-- The activation modal collects the timezone and a Slack user group to ping.
-- Once activated, the bot posts a standup prompt each morning at 08:00 in the channel timezone.
-- It then sends reminder pings in the thread every two hours to anyone in the selected ping group who has not replied yet.
-- Reminders continue until the next morning standup replaces the thread.
+- The activation modal collects the timezone, how often standups are sent, how often the bot reminds people, and a Slack user group to ping.
+- Standups can go out every day (default, recommended), every other day, or once a week, always at 08:00 in the channel timezone.
+- It then sends reminder pings in the thread to anyone in the selected ping group who has not replied yet. The interval is configurable from 1 to 12 hours; two hours is the default and what we recommend.
+- Reminders stop once everyone has replied, when the next standup replaces the thread, or 24 hours after the standup was posted - whichever comes first.
+- Channels configured before these settings existed keep working: any setting missing from `standup_state.json` falls back to its default.
 
 ## Local setup
 
@@ -24,7 +25,7 @@ A Slack bot that helps teams run daily standups.
 5. Start the app (must be the venv's Python, or you get `ModuleNotFoundError`):
    - `python app.py`  (or `.venv/bin/python app.py` without activating)
 6. Run tests:
-   - `python -m unittest discover -s tests`
+   - `PYTHONPATH=. python -m unittest tests.test_standup_logic`
 
 ## Slack configuration
 
