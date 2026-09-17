@@ -466,9 +466,15 @@ def activate_command(ack, body, respond):
                 ],
             },
         )
-    except SlackApiError:
-        logger.exception("Failed to open activation modal")
-        respond(text="I could not open the activation form. Check that the app has interactivity enabled and try again.", response_type="ephemeral")
+    except SlackApiError as err:
+        # Surface Slack's own error code: the generic "check interactivity"
+        # message hid which of views.open's many failure modes actually fired.
+        error_code = err.response.get("error", "unknown_error")
+        logger.exception("Failed to open activation modal (%s): %s", error_code, err.response.data)
+        respond(
+            text=f"I could not open the activation form (Slack said `{error_code}`). Check that the app has interactivity enabled and try again.",
+            response_type="ephemeral",
+        )
 
 
 @app.view("standup_setup")
