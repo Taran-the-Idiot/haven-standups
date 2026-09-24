@@ -33,6 +33,7 @@ from standup_logic import (
     is_channel_manager_user,
     is_runnable_window,
     matches_reset_key,
+    next_reminder_after,
     next_standup_time,
     normalize_reminder_interval_hours,
     normalize_standup_frequency,
@@ -398,7 +399,7 @@ def schedule_checks() -> None:
                     )
                 except Exception:
                     logger.exception("Reminder check failed for %s", channel_id)
-                state.next_reminder_at = state.next_reminder_at + timedelta(hours=state.reminder_interval_hours)
+                state.next_reminder_at = next_reminder_after(state.next_reminder_at, current_local, state.reminder_interval_hours)
                 if state.next_reminder_at >= reminder_end_at:
                     state.next_reminder_at = None
                 save_state()

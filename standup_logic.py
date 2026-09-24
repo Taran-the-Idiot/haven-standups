@@ -209,6 +209,21 @@ def next_standup_time(
     return candidate + timedelta(days=standup_frequency_days(frequency))
 
 
+def next_reminder_after(previous: datetime, now: datetime, interval_hours: int) -> datetime:
+    """The first reminder slot after `now`, stepping from `previous`.
+
+    Stepping by a single interval would leave the next slot still in the past
+    whenever reminders fell behind (bot down, checks failing), and the minute
+    poll would then fire one reminder per missed slot back to back.
+    """
+    step = timedelta(hours=interval_hours)
+    candidate = previous + step
+    if candidate <= now:
+        missed = (now - candidate) // step + 1
+        candidate += step * missed
+    return candidate
+
+
 def is_runnable_window(current_time: datetime, timezone_value: str) -> bool:
     tzinfo = _timezone_from_value(timezone_value)
     current = current_time.astimezone(tzinfo)

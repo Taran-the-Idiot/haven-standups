@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 import unittest
 
@@ -16,6 +16,7 @@ from standup_logic import (
     is_channel_manager_user,
     is_runnable_window,
     matches_reset_key,
+    next_reminder_after,
     next_standup_time,
     normalize_reminder_interval_hours,
     normalize_standup_frequency,
@@ -136,6 +137,25 @@ class StateCompatibilityTests(unittest.TestCase):
         restored = deserialize_channel_state(serialize_channel_state(state))
         self.assertEqual(restored.standup_frequency, "weekly")
         self.assertEqual(restored.reminder_interval_hours, 6)
+
+    def test_next_reminder_after_steps_one_interval_when_on_time(self):
+        tz = timezone(timedelta(hours=9))
+        previous = datetime(2026, 9, 24, 10, 0, tzinfo=tz)
+        now = datetime(2026, 9, 24, 10, 0, 30, tzinfo=tz)
+        self.assertEqual(next_reminder_after(previous, now, 2), datetime(2026, 9, 24, 12, 0, tzinfo=tz))
+
+    def test_next_reminder_after_skips_missed_slots_instead_of_catching_up(self):
+        tz = timezone(timedelta(hours=9))
+        previous = datetime(2026, 9, 24, 10, 0, tzinfo=tz)
+        now = datetime(2026, 9, 24, 19, 25, tzinfo=tz)
+        # 12:00-18:00 were missed; the next reminder is 20:00, not 12:00.
+        self.assertEqual(next_reminder_after(previous, now, 2), datetime(2026, 9, 24, 20, 0, tzinfo=tz))
+
+    def test_next_reminder_after_exact_slot_moves_past_now(self):
+        tz = timezone.utc
+        previous = datetime(2026, 9, 24, 10, 0, tzinfo=tz)
+        now = datetime(2026, 9, 24, 14, 0, tzinfo=tz)
+        self.assertEqual(next_reminder_after(previous, now, 2), datetime(2026, 9, 24, 16, 0, tzinfo=tz))
 
 
 if __name__ == "__main__":
