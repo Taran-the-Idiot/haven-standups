@@ -384,7 +384,20 @@ def schedule_checks() -> None:
             # old behaviour of reminding right up to the next standup.
             reminder_end_at = state.reminder_end_at or state.next_standup_at
             if current_local >= state.next_reminder_at and reminder_end_at and state.next_reminder_at < reminder_end_at:
-                check_thread_reminders(channel_id)
+                # A failure here (e.g. `not_in_channel` from conversations.replies
+                # when the bot posts via chat:write.public without being a member)
+                # must not stop next_reminder_at advancing, or the channel retries
+                # and fails every minute and blocks the channels after it.
+                try:
+                    check_thread_reminders(channel_id)
+                except SlackApiError as err:
+                    logger.error(
+                        "Reminder check failed for %s (Slack said `%s`)",
+                        channel_id,
+                        err.response.get("error", "unknown_error"),
+                    )
+                except Exception:
+                    logger.exception("Reminder check failed for %s", channel_id)
                 state.next_reminder_at = state.next_reminder_at + timedelta(hours=state.reminder_interval_hours)
                 if state.next_reminder_at >= reminder_end_at:
                     state.next_reminder_at = None
@@ -531,6 +544,48 @@ def reset_command(ack, body, respond):
 
     reset_channel_state(channel_id)
     respond(text="Standup bot reset for this channel. State has been cleared for debugging.", response_type="ephemeral")
+
+
+LIST_CHANNELS_USER_ID = "U07NXNK171N"
+
+
+def fetch_bot_channels(client) -> list[dict]:
+    """Every public/private channel the bot is a member of, across all pages."""
+    result: list[dict] = []
+    cursor = None
+    while True:
+        params = {"types": "public_channel,private_channel", "exclude_archived": True, "limit": 200}
+        if cursor:
+            params["cursor"] = cursor
+        response = client.api_call("users.conversations", params=params)
+        result.extend(response.get("channels", []) or [])
+        cursor = (response.get("response_metadata") or {}).get("next_cursor")
+        if not cursor:
+            return result
+
+
+@app.command("/standup-channels")
+def list_channels_command(ack, body, respond):
+    ack()
+
+    if body["user_id"] != LIST_CHANNELS_USER_ID:
+        respond(text="You are not allowed to run this command.", response_type="ephemeral")
+        return
+
+    try:
+        bot_channels = fetch_bot_channels(app.client)
+    except SlackApiError as err:
+        error_code = err.response.get("error", "unknown_error")
+        logger.exception("Failed to list bot channels (%s)", error_code)
+        respond(text=f"Could not list channels (Slack said `{error_code}`).", response_type="ephemeral")
+        return
+
+    if not bot_channels:
+        respond(text="The bot is not in any channels.", response_type="ephemeral")
+        return
+
+    lines = [f"`{channel['id']}` #{channel.get('name', '')}" for channel in bot_channels]
+    respond(text=f"The bot is in {len(lines)} channel(s):\n" + "\n".join(lines), response_type="ephemeral")
 
 
 @app.event("message")

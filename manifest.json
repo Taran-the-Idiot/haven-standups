@@ -19,6 +19,11 @@
                 "command": "/reset-standup",
                 "description": "Reset the standup bot in this channel.",
                 "should_escape": false
+            },
+            {
+                "command": "/standup-channels",
+                "description": "List the IDs of every channel the standup bot is in.",
+                "should_escape": false
             }
         ]
     },
