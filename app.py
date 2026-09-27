@@ -414,7 +414,7 @@ def scheduler_loop() -> None:
         time.sleep(60)
 
 
-@app.command("/activate-standup-dev")
+@app.command("/activate-standup")
 def activate_command(ack, body, respond):
     ack()
     channel_id = body["channel_id"]
@@ -534,7 +534,7 @@ def load_ping_group_options(ack, body):
 
 
 
-@app.command("/reset-standup-dev")
+@app.command("/reset-standup")
 def reset_command(ack, body, respond):
     ack()
     channel_id = body["channel_id"]
@@ -566,7 +566,7 @@ def fetch_bot_channels(client) -> list[dict]:
             return result
 
 
-@app.command("/standup-channels-dev")
+@app.command("/standup-channels")
 def list_channels_command(ack, body, respond):
     ack()
 

@@ -11,17 +11,17 @@
         },
         "slash_commands": [
             {
-                "command": "/activate-standup-dev",
+                "command": "/activate-standup",
                 "description": "Activate the standup bot in this channel and set the timezone.",
                 "should_escape": false
             },
             {
-                "command": "/reset-standup-dev",
+                "command": "/reset-standup",
                 "description": "Reset the standup bot in this channel.",
                 "should_escape": false
             },
             {
-                "command": "/standup-channels-dev",
+                "command": "/standup-channels",
                 "description": "List the IDs of every channel the standup bot is in.",
                 "should_escape": false
             }
