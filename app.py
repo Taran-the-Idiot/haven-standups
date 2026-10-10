@@ -9,6 +9,8 @@ import time
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
+import fcntl
+
 import certifi
 from dotenv import load_dotenv
 from slack_bolt import App
@@ -19,7 +21,6 @@ from slack_sdk.errors import SlackApiError
 from standup_logic import (
     DEFAULT_REMINDER_INTERVAL_HOURS,
     DEFAULT_STANDUP_FREQUENCY,
-    REMINDER_WINDOW_HOURS,
     ChannelState,
     build_reminder_text,
     compute_missing_users,
@@ -38,6 +39,7 @@ from standup_logic import (
     normalize_reminder_interval_hours,
     normalize_standup_frequency,
     normalize_timezone_value,
+    reminder_cutoff,
     serialize_channels,
     standup_frequency_label,
 )
@@ -64,6 +66,13 @@ app = App(
 
 channels: dict[str, ChannelState] = {}
 standup_timers: dict[str, threading.Timer] = {}
+# The per-channel timer and the minute poll can both see a standup as due at
+# 08:00; serialize posting so only one of them sends it.
+_post_lock = threading.Lock()
+
+# Slack errors that mean the bot can never post to the channel again (removed,
+# archived, deleted). Retrying these just fails again every minute.
+PERMANENT_CHANNEL_ERRORS = {"channel_not_found", "not_in_channel", "is_archived", "channel_is_archived"}
 
 # Bot state (which channels are active, their timezone/ping group, and the
 # next scheduled times) lives only in the `channels` dict above, so without
@@ -261,7 +270,7 @@ def activate_standup(
     state.ping_group_users = ping_group_users
     state.next_standup_at = next_standup_time(timezone_value, datetime.now(timezone.utc), state.standup_frequency)
     state.next_reminder_at = state.next_standup_at + timedelta(hours=state.reminder_interval_hours)
-    state.reminder_end_at = state.next_standup_at + timedelta(hours=REMINDER_WINDOW_HOURS)
+    state.reminder_end_at = reminder_cutoff(state.next_standup_at)
     state.last_standup_ts = None
     state.last_thread_ts = None
     state.last_thread_users = []
@@ -318,11 +327,8 @@ def send_standup_message(channel_id: str) -> None:
     state.next_standup_at = next_standup_time(state.timezone, now, state.standup_frequency)
     local_now = now.astimezone(state.next_standup_at.tzinfo or timezone.utc)
     state.next_reminder_at = local_now + timedelta(hours=state.reminder_interval_hours)
-    # Cap the nagging at a day so a weekly cadence doesn't remind all week.
-    state.reminder_end_at = min(
-        local_now + timedelta(hours=REMINDER_WINDOW_HOURS),
-        state.next_standup_at,
-    )
+    # Stop nagging at 22:00 local on the day the standup went out.
+    state.reminder_end_at = min(reminder_cutoff(local_now), state.next_standup_at)
     schedule_standup_timer(channel_id)
     save_state()
 
@@ -330,10 +336,35 @@ def send_standup_message(channel_id: str) -> None:
 
 
 def run_standup_post(channel_id: str, source: str) -> None:
-    try:
-        send_standup_message(channel_id)
-    except Exception:
-        logger.exception("Failed to send standup for %s from %s", channel_id, source)
+    with _post_lock:
+        state = get_channel_state(channel_id)
+        now = datetime.now(timezone.utc)
+        if not state.active or not state.next_standup_at or now < state.next_standup_at:
+            return
+
+        try:
+            send_standup_message(channel_id)
+        except SlackApiError as err:
+            error_code = err.response.get("error", "unknown_error")
+            if error_code in PERMANENT_CHANNEL_ERRORS:
+                logger.error("Deactivating %s: Slack said `%s` when posting the standup", channel_id, error_code)
+                state.active = False
+                clear_standup_timer(channel_id)
+            else:
+                logger.error("Failed to send standup for %s from %s (Slack said `%s`)", channel_id, source, error_code)
+            skip_failed_standup(channel_id, now)
+        except Exception:
+            logger.exception("Failed to send standup for %s from %s", channel_id, source)
+            skip_failed_standup(channel_id, now)
+
+
+def skip_failed_standup(channel_id: str, now: datetime) -> None:
+    # Move on to the next slot; leaving next_standup_at in the past made the
+    # minute poll retry (and fail) forever.
+    state = get_channel_state(channel_id)
+    state.next_standup_at = next_standup_time(state.timezone, now, state.standup_frequency)
+    schedule_standup_timer(channel_id)
+    save_state()
 
 
 def check_thread_reminders(channel_id: str) -> None:
@@ -621,6 +652,15 @@ if __name__ == "__main__":
     app_token = os.environ.get("SLACK_APP_TOKEN")
     if not app_token:
         raise RuntimeError("SLACK_APP_TOKEN is required for Socket Mode")
+
+    # Two copies of the bot each post their own standup thread and then nag
+    # everyone in "their" thread, even people who replied in the other one.
+    # Refuse to start a second copy on the same machine.
+    lock_file = open(STATE_FILE.with_suffix(STATE_FILE.suffix + ".lock"), "w")
+    try:
+        fcntl.flock(lock_file, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except BlockingIOError:
+        raise SystemExit("Another copy of the standup bot is already running here; stop it first.")
 
     load_state()
     restore_standup_timers()

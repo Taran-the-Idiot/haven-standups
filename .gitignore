@@ -8,3 +8,4 @@ __pycache__/
 .venv/
 standup_state.json
 standup_state.json.tmp
+standup_state.json.lock

@@ -22,9 +22,9 @@ STANDUP_FREQUENCIES: dict[str, dict] = {
     "weekly": {"label": "Once a week", "days": 7},
 }
 
-# Reminders stop this long after the standup was posted. Without it a weekly
-# cadence would keep nagging every few hours for a full week.
-REMINDER_WINDOW_HOURS = 24
+# Reminders stop at this hour (channel-local) on the day the standup was
+# posted. A 24h window meant up to 11 pings a day, right through the night.
+REMINDER_CUTOFF_HOUR = 22
 
 
 @dataclass
@@ -222,6 +222,11 @@ def next_reminder_after(previous: datetime, now: datetime, interval_hours: int) 
         missed = (now - candidate) // step + 1
         candidate += step * missed
     return candidate
+
+
+def reminder_cutoff(posted_at: datetime) -> datetime:
+    """When reminders stop for a standup posted at `posted_at` (channel-local)."""
+    return posted_at.replace(hour=REMINDER_CUTOFF_HOUR, minute=0, second=0, microsecond=0)
 
 
 def is_runnable_window(current_time: datetime, timezone_value: str) -> bool:

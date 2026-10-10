@@ -21,6 +21,7 @@ from standup_logic import (
     normalize_reminder_interval_hours,
     normalize_standup_frequency,
     normalize_timezone_value,
+    reminder_cutoff,
     serialize_channel_state,
 )
 
@@ -156,6 +157,11 @@ class StateCompatibilityTests(unittest.TestCase):
         previous = datetime(2026, 9, 24, 10, 0, tzinfo=tz)
         now = datetime(2026, 9, 24, 14, 0, tzinfo=tz)
         self.assertEqual(next_reminder_after(previous, now, 2), datetime(2026, 9, 24, 16, 0, tzinfo=tz))
+
+    def test_reminder_cutoff_is_22_00_local_on_standup_day(self):
+        tz = timezone(timedelta(hours=10))
+        posted = datetime(2026, 9, 24, 8, 0, 3, tzinfo=tz)
+        self.assertEqual(reminder_cutoff(posted), datetime(2026, 9, 24, 22, 0, tzinfo=tz))
 
 
 if __name__ == "__main__":
