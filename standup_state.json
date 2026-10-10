@@ -1,0 +1,363 @@
+{
+  "C0BSY29RNAX": {
+    "active": false,
+    "timezone": "UTC",
+    "standup_frequency": "daily",
+    "reminder_interval_hours": 2,
+    "next_standup_at": null,
+    "next_reminder_at": null,
+    "reminder_end_at": null,
+    "ping_group_id": null,
+    "ping_group_users": [],
+    "last_standup_ts": null,
+    "last_thread_ts": null,
+    "last_thread_users": []
+  },
+  "C0BSZG58TGE": {
+    "active": true,
+    "timezone": "UTC+10",
+    "standup_frequency": "daily",
+    "reminder_interval_hours": 2,
+    "next_standup_at": "2026-10-11T08:00:00+10:00",
+    "next_reminder_at": "2026-10-10T20:00:00.621205+10:00",
+    "reminder_end_at": "2026-10-10T22:00:00+10:00",
+    "ping_group_id": "S0BTMN4N1ED",
+    "ping_group_users": [
+      "U091HKKKJRH",
+      "U082ZLXSU10",
+      "U08A62MT5PY",
+      "U092839T3A7",
+      "U092DB4LGMP",
+      "U09749NA8R4",
+      "U09759W9GDS",
+      "U0979HGQTDE",
+      "U09DQK2839N",
+      "U09EFJJNNBC",
+      "U09GARHPTGW",
+      "U09GATRS3S5",
+      "U09GCBM0Z1Q",
+      "U09QKSA3BGA",
+      "U09V9K0U223",
+      "U0B96KZ3LHY",
+      "U0BK0V0PJ5S",
+      "U0BL180T2JG",
+      "U0BSVAAQTH9",
+      "U0BSXQZB5RT",
+      "U0BSZUUB6PQ"
+    ],
+    "last_standup_ts": "1791583201.054999",
+    "last_thread_ts": "1791583201.054999",
+    "last_thread_users": [
+      "U082ZLXSU10",
+      "U092DB4LGMP",
+      "U08A62MT5PY",
+      "U091HKKKJRH",
+      "U092839T3A7",
+      "U09749NA8R4",
+      "U09759W9GDS",
+      "U0979HGQTDE",
+      "U09DQK2839N",
+      "U09EFJJNNBC",
+      "U09GARHPTGW",
+      "U09GATRS3S5",
+      "U09GCBM0Z1Q",
+      "U09QKSA3BGA",
+      "U09V9K0U223",
+      "U0B96KZ3LHY",
+      "U0BK0V0PJ5S",
+      "U0BL180T2JG",
+      "U0BSVAAQTH9",
+      "U0BSXQZB5RT",
+      "U0BSZUUB6PQ"
+    ]
+  },
+  "C0BNGRRV1GE": {
+    "active": false,
+    "timezone": "UTC",
+    "standup_frequency": "daily",
+    "reminder_interval_hours": 2,
+    "next_standup_at": "2026-09-27T08:00:00+00:00",
+    "next_reminder_at": null,
+    "reminder_end_at": "2026-09-22T08:00:00+00:00",
+    "ping_group_id": "S0BTP5F3F4K",
+    "ping_group_users": [
+      "U06P19MEXEZ",
+      "U0735FTMS3V",
+      "U07GPJ6V3UZ",
+      "U07UK4S94KC",
+      "U08R4Q9H8EB"
+    ],
+    "last_standup_ts": "1789977600.561549",
+    "last_thread_ts": "1789977600.561549",
+    "last_thread_users": [
+      "U06P19MEXEZ",
+      "U08R4Q9H8EB",
+      "U0735FTMS3V",
+      "U07UK4S94KC"
+    ]
+  },
+  "C0BNZ1B1Z5K": {
+    "active": false,
+    "timezone": "UTC-10",
+    "standup_frequency": "daily",
+    "reminder_interval_hours": 2,
+    "next_standup_at": "2026-09-27T08:00:00-10:00",
+    "next_reminder_at": "2026-09-24T04:00:00.001309-10:00",
+    "reminder_end_at": "2026-09-24T08:00:00-10:00",
+    "ping_group_id": "S0C2M4SND7T",
+    "ping_group_users": [
+      "U07UK4S94KC",
+      "U078F3Q2007",
+      "U087BHR98AX",
+      "U092D42UA57",
+      "U092DB4LGMP",
+      "U0A7LPP8RDW"
+    ],
+    "last_standup_ts": "1790186400.500869",
+    "last_thread_ts": "1790186400.500869",
+    "last_thread_users": [
+      "U07UK4S94KC",
+      "U078F3Q2007",
+      "U087BHR98AX",
+      "U092D42UA57",
+      "U092DB4LGMP",
+      "U0A7LPP8RDW"
+    ]
+  },
+  "C0C1FRJLTE0": {
+    "active": false,
+    "timezone": "UTC",
+    "standup_frequency": "daily",
+    "reminder_interval_hours": 2,
+    "next_standup_at": null,
+    "next_reminder_at": null,
+    "reminder_end_at": null,
+    "ping_group_id": null,
+    "ping_group_users": [],
+    "last_standup_ts": null,
+    "last_thread_ts": null,
+    "last_thread_users": []
+  },
+  "C0C1EPH0M17": {
+    "active": false,
+    "timezone": "UTC",
+    "standup_frequency": "daily",
+    "reminder_interval_hours": 2,
+    "next_standup_at": null,
+    "next_reminder_at": null,
+    "reminder_end_at": null,
+    "ping_group_id": null,
+    "ping_group_users": [],
+    "last_standup_ts": null,
+    "last_thread_ts": null,
+    "last_thread_users": []
+  },
+  "C0BV0MPFGHL": {
+    "active": false,
+    "timezone": "UTC",
+    "standup_frequency": "daily",
+    "reminder_interval_hours": 2,
+    "next_standup_at": null,
+    "next_reminder_at": null,
+    "reminder_end_at": null,
+    "ping_group_id": null,
+    "ping_group_users": [],
+    "last_standup_ts": null,
+    "last_thread_ts": null,
+    "last_thread_users": []
+  },
+  "C0BUNVC5WNQ": {
+    "active": false,
+    "timezone": "UTC+1",
+    "standup_frequency": "daily",
+    "reminder_interval_hours": 1,
+    "next_standup_at": "2026-09-27T08:00:00+01:00",
+    "next_reminder_at": null,
+    "reminder_end_at": "2026-09-22T08:00:00+01:00",
+    "ping_group_id": "S0C2N622WSZ",
+    "ping_group_users": [
+      "U0A03GWFP1V",
+      "U0877PG14F4",
+      "U08HH8E5DQB",
+      "U09MY3SS6CV"
+    ],
+    "last_standup_ts": "1789974000.543269",
+    "last_thread_ts": "1789974000.543269",
+    "last_thread_users": [
+      "U0A03GWFP1V",
+      "U0877PG14F4",
+      "U08HH8E5DQB",
+      "U09MY3SS6CV"
+    ]
+  },
+  "C0BTXJ1FCV8": {
+    "active": true,
+    "timezone": "UTC+5",
+    "standup_frequency": "daily",
+    "reminder_interval_hours": 2,
+    "next_standup_at": "2026-10-11T08:00:00+05:00",
+    "next_reminder_at": "2026-10-10T14:00:00.000710+05:00",
+    "reminder_end_at": "2026-10-10T22:00:00+05:00",
+    "ping_group_id": "S0C2VRT7126",
+    "ping_group_users": [
+      "U0AABHQ5H6C",
+      "U084Q2E1171",
+      "U0A0MLXQW7N",
+      "U093P6X1K38",
+      "U0A770YSM37"
+    ],
+    "last_standup_ts": "1791601200.455549",
+    "last_thread_ts": "1791601200.455549",
+    "last_thread_users": [
+      "U0AABHQ5H6C",
+      "U084Q2E1171",
+      "U093P6X1K38",
+      "U0A0MLXQW7N",
+      "U0A770YSM37"
+    ]
+  },
+  "C0C11EL44TY": {
+    "active": true,
+    "timezone": "UTC-5",
+    "standup_frequency": "daily",
+    "reminder_interval_hours": 12,
+    "next_standup_at": "2026-10-10T08:00:00-05:00",
+    "next_reminder_at": null,
+    "reminder_end_at": "2026-10-09T22:00:00-05:00",
+    "ping_group_id": "S0C31AL66TT",
+    "ping_group_users": [
+      "U0A9CKD3CMT",
+      "U0AGAC25BFV",
+      "U0B2L1EFM2P",
+      "U0BD5GT4K38",
+      "U0BT63XMKHV",
+      "U0BUQ6ZTK6Y",
+      "U0C2A55RR54"
+    ],
+    "last_standup_ts": "1791550800.445099",
+    "last_thread_ts": "1791550800.445099",
+    "last_thread_users": [
+      "U0A9CKD3CMT",
+      "U0AGAC25BFV",
+      "U0B2L1EFM2P",
+      "U0BD5GT4K38",
+      "U0BT63XMKHV",
+      "U0BUQ6ZTK6Y",
+      "U0C2A55RR54"
+    ]
+  },
+  "C0BQ4GDTRL7": {
+    "active": true,
+    "timezone": "UTC+10",
+    "standup_frequency": "daily",
+    "reminder_interval_hours": 2,
+    "next_standup_at": "2026-10-11T08:00:00+10:00",
+    "next_reminder_at": "2026-10-10T20:00:00.000712+10:00",
+    "reminder_end_at": "2026-10-10T22:00:00+10:00",
+    "ping_group_id": "S0BRJGME29M",
+    "ping_group_users": [
+      "U080F22CTJN",
+      "U0923H02Y3B",
+      "U094HHPS5B8",
+      "U0B7GEPM97E",
+      "U0C1KBCEEF4"
+    ],
+    "last_standup_ts": "1791583200.466029",
+    "last_thread_ts": "1791583200.466029",
+    "last_thread_users": [
+      "U080F22CTJN",
+      "U0923H02Y3B",
+      "U094HHPS5B8",
+      "U0B7GEPM97E",
+      "U0C1KBCEEF4"
+    ]
+  },
+  "C0C2ZC560G3": {
+    "active": true,
+    "timezone": "UTC+2",
+    "standup_frequency": "daily",
+    "reminder_interval_hours": 2,
+    "next_standup_at": "2026-10-11T08:00:00+02:00",
+    "next_reminder_at": "2026-10-10T12:00:00.000562+02:00",
+    "reminder_end_at": "2026-10-10T22:00:00+02:00",
+    "ping_group_id": "S0C383SN54H",
+    "ping_group_users": [
+      "U081X26F6EA",
+      "U08NXJL86KT",
+      "U0A0MLXQW7N",
+      "U0BUYGTEBMK"
+    ],
+    "last_standup_ts": "1791612005.432599",
+    "last_thread_ts": "1791612005.432599",
+    "last_thread_users": [
+      "U081X26F6EA",
+      "U08NXJL86KT",
+      "U0A0MLXQW7N",
+      "U0BUYGTEBMK"
+    ]
+  },
+  "C0C1EH1BQAW": {
+    "active": false,
+    "timezone": "UTC",
+    "standup_frequency": "daily",
+    "reminder_interval_hours": 2,
+    "next_standup_at": null,
+    "next_reminder_at": null,
+    "reminder_end_at": null,
+    "ping_group_id": null,
+    "ping_group_users": [],
+    "last_standup_ts": null,
+    "last_thread_ts": null,
+    "last_thread_users": []
+  },
+  "C0BQH7L6LAE": {
+    "active": false,
+    "timezone": "UTC",
+    "standup_frequency": "daily",
+    "reminder_interval_hours": 2,
+    "next_standup_at": null,
+    "next_reminder_at": null,
+    "reminder_end_at": null,
+    "ping_group_id": null,
+    "ping_group_users": [],
+    "last_standup_ts": null,
+    "last_thread_ts": null,
+    "last_thread_users": []
+  },
+  "C0BU43VN96C": {
+    "active": false,
+    "timezone": "UTC",
+    "standup_frequency": "daily",
+    "reminder_interval_hours": 2,
+    "next_standup_at": null,
+    "next_reminder_at": null,
+    "reminder_end_at": null,
+    "ping_group_id": null,
+    "ping_group_users": [],
+    "last_standup_ts": null,
+    "last_thread_ts": null,
+    "last_thread_users": []
+  },
+  "C0C278FV30R": {
+    "active": true,
+    "timezone": "UTC-7",
+    "standup_frequency": "daily",
+    "reminder_interval_hours": 8,
+    "next_standup_at": "2026-10-10T08:00:00-07:00",
+    "next_reminder_at": null,
+    "reminder_end_at": "2026-10-09T22:00:00-07:00",
+    "ping_group_id": "S0C6TFVKKQB",
+    "ping_group_users": [
+      "U091S1RAS74",
+      "U0A04H3G3AP",
+      "U0AC3SCT9K2"
+    ],
+    "last_standup_ts": "1791558000.458699",
+    "last_thread_ts": "1791558000.458699",
+    "last_thread_users": [
+      "U091S1RAS74",
+      "U0A04H3G3AP",
+      "U0AC3SCT9K2"
+    ]
+  }
+}
